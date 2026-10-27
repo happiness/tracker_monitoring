@@ -1,0 +1,7 @@
+tracker_monitoring.settings:
+  path: '/admin/config/system/tracker-monitoring'
+  defaults:
+    _form: '\Drupal\tracker_monitoring\Form\SettingsForm'
+    _title: 'Tracker Monitoring'
+  requirements:
+    _permission: 'administer site configuration'

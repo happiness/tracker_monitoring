@@ -1,0 +1,21 @@
+{
+    "packages": [
+        {
+            "name": "drupal/core-recommended",
+            "version": "11.0.5",
+            "require": {"drupal/core": "11.0.5", "twig/twig": "v3.10.3", "php": ">=8.3"}
+        },
+        {
+            "name": "drupal/core",
+            "version": "11.0.5",
+            "require": {"php": ">=8.3", "ext-json": "*", "Symfony/Yaml": "~7.1.1"}
+        },
+        {"name": "twig/twig", "version": "v3.10.3", "require": {"php": ">=7.2.5"}},
+        {"name": "symfony/yaml", "version": "v7.1.1"},
+        {"name": "drupal/admin_toolbar", "version": "3.5.1", "require": {"drupal/core": "^10.2 || ^11"}},
+        {"name": "phpunit/phpunit", "version": "11.2.0", "require": {"sebastian/diff": "^6.0"}},
+        {"name": "sebastian/diff", "version": "6.0.1"}
+    ],
+    "dev": true,
+    "dev-package-names": ["phpunit/phpunit", "sebastian/diff"]
+}

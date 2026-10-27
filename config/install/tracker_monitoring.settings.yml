@@ -1,0 +1,9 @@
+send_packages: false
+send_status: false
+send_logs: false
+log_min_severity: 4
+log_excluded_types:
+  - 'page not found'
+  - 'access denied'
+log_send_filled_message: false
+set_syslog_format: true

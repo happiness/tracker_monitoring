@@ -1,0 +1,14 @@
+{
+    "name": "happiness/tracker_monitoring",
+    "description": "Sends the site's packages, status report and error log to Tracker.",
+    "type": "drupal-module",
+    "homepage": "https://github.com/happiness/tracker-monitoring",
+    "license": "proprietary",
+    "require": {
+        "php": ">=8.3",
+        "drupal/core": "^11.4"
+    },
+    "require-dev": {
+        "drush/drush": "^13.8"
+    }
+}

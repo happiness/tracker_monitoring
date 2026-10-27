@@ -1,0 +1,43 @@
+services:
+  logger.channel.tracker_monitoring:
+    parent: logger.channel_base
+    arguments: ['tracker_monitoring']
+
+  tracker_monitoring.package_reader:
+    class: Drupal\tracker_monitoring\PackageReader
+    # The directory above the web root has composer.json and vendor/ on a site
+    # made from drupal/recommended-project; $settings['tracker_monitoring_project_root']
+    # overrides it.
+    factory: ['Drupal\tracker_monitoring\PackageReaderFactory', 'create']
+    arguments: ['%app.root%']
+
+  tracker_monitoring.status_collector:
+    class: Drupal\tracker_monitoring\StatusCollector
+    arguments:
+      - '@system.manager'
+      - '@module_handler'
+      - '@state'
+      - '@renderer'
+      - '@database'
+
+  tracker_monitoring.report_sender:
+    class: Drupal\tracker_monitoring\ReportSender
+    arguments:
+      - '@config.factory'
+      - '@http_client'
+      - '@datetime.time'
+      - '@tracker_monitoring.package_reader'
+      - '@tracker_monitoring.status_collector'
+      - '@logger.channel.tracker_monitoring'
+  Drupal\tracker_monitoring\ReportSender: '@tracker_monitoring.report_sender'
+
+  tracker_monitoring.report_scheduler:
+    class: Drupal\tracker_monitoring\ReportScheduler
+    arguments: ['@tracker_monitoring.report_sender', '@state', '@datetime.time']
+  Drupal\tracker_monitoring\ReportScheduler: '@tracker_monitoring.report_scheduler'
+
+  tracker_monitoring.syslog_format_override:
+    class: Drupal\tracker_monitoring\Config\SyslogFormatOverride
+    arguments: ['@config.storage']
+    tags:
+      - { name: config.factory.override, priority: 5 }

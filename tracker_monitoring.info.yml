@@ -1,0 +1,7 @@
+name: Tracker Monitoring
+type: module
+description: 'Sends the site''s packages, status report and error log to Tracker.'
+package: Monitoring
+core_version_requirement: ^11.4
+php: 8.3
+configure: tracker_monitoring.settings
