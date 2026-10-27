@@ -40,7 +40,7 @@ final class ReportScheduler {
     $results = [];
     foreach ($this->sender->enabledReports() as $report) {
       $interval = $report->interval();
-      if ($interval === NULL || $now < (int) $this->state->get($this->stateKey($report), 0)) {
+      if ($now < (int) $this->state->get($this->stateKey($report), 0)) {
         continue;
       }
       $result = $this->sender->send($report);

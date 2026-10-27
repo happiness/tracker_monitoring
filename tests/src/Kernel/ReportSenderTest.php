@@ -40,13 +40,14 @@ final class ReportSenderTest extends KernelTestBase {
   /**
    * {@inheritdoc}
    */
-  protected static $modules = ['system', 'tracker_monitoring'];
+  protected static $modules = ['system', 'dblog', 'tracker_monitoring'];
 
   /**
    * {@inheritdoc}
    */
   protected function setUp(): void {
     parent::setUp();
+    $this->installSchema('dblog', ['watchdog']);
     $this->installConfig(['tracker_monitoring']);
     $this->config('tracker_monitoring.settings')->set('endpoint', 'https://tracker.example.com/')->save();
   }
@@ -188,7 +189,7 @@ final class ReportSenderTest extends KernelTestBase {
   public function testUnreadablePackagesSendNothing(): void {
     $this->switchOn(Report::Packages);
     $this->setKey(self::KEY);
-    $sender = new ReportSender($this->container->get('config.factory'), new Client(['handler' => new MockHandler([])]), $this->container->get('datetime.time'), new PackageReader('/nowhere'), $this->container->get('tracker_monitoring.status_collector'), new NullLogger());
+    $sender = new ReportSender($this->container->get('config.factory'), new Client(['handler' => new MockHandler([])]), $this->container->get('datetime.time'), new PackageReader('/nowhere'), $this->container->get('tracker_monitoring.status_collector'), $this->container->get('tracker_monitoring.log_collector'), new NullLogger());
 
     $result = $sender->send(Report::Packages);
 
@@ -238,8 +239,150 @@ final class ReportSenderTest extends KernelTestBase {
       $this->container->get('datetime.time'),
       new PackageReader(dirname(__DIR__, 2) . '/fixtures/site'),
       $this->container->get('tracker_monitoring.status_collector'),
+      $this->container->get('tracker_monitoring.log_collector'),
       new NullLogger(),
     );
+  }
+
+  /**
+   * Adds a row to the database log, as dblog would.
+   *
+   * @param int $severity
+   *   The RFC 5424 severity, 0 to 7.
+   * @param string $type
+   *   The log type, such as "php".
+   * @param string $message
+   *   The message template.
+   * @param array<string, string> $variables
+   *   The placeholders of the message.
+   */
+  private function log(int $severity, string $type, string $message, array $variables = []): void {
+    $this->container->get('database')->insert('watchdog')->fields([
+      'uid' => 0,
+      'type' => $type,
+      'message' => $message,
+      'variables' => serialize($variables),
+      'severity' => $severity,
+      'link' => '',
+      'location' => '',
+      'referer' => '',
+      'hostname' => '',
+      'timestamp' => 1792000000,
+    ])->execute();
+  }
+
+  /**
+   * Gets the rows of the log reports Tracker was sent.
+   *
+   * @return array<int, list<array<string, mixed>>>
+   *   The rows of each request, in order.
+   */
+  private function sentRows(): array {
+    return array_map(static function (array $transaction): array {
+      $body = json_decode((string) $transaction['request']->getBody(), TRUE, 8, JSON_THROW_ON_ERROR);
+      return $body['rows'];
+    }, $this->sent);
+  }
+
+  /**
+   * The log starts at the newest row: nothing from before is sent.
+   */
+  public function testLogsStartAtTheNewestRowAndSendNothingFromBefore(): void {
+    $this->switchOn(Report::Logs);
+    $this->setKey(self::KEY);
+    $this->log(3, 'php', 'An old error');
+
+    $result = $this->packagesSender([])->send(Report::Logs);
+
+    $this->assertTrue($result->success);
+    $this->assertStringContainsString('Started', $result->message);
+    $this->assertSame([], $this->sent, 'no request was made');
+    $this->assertSame(1, $this->container->get('tracker_monitoring.log_collector')->cursor());
+  }
+
+  /**
+   * New rows are sent once, filtered, with a level and a scrubbed message.
+   */
+  public function testNewRowsAreSentOnceFilteredAndScrubbed(): void {
+    $this->switchOn(Report::Logs);
+    $this->setKey(self::KEY);
+    $this->packagesSender([])->send(Report::Logs);
+    $this->log(4, 'mail', 'Mail to @name failed from 10.0.0.1', ['@name' => 'bob@example.com']);
+    $this->log(3, 'php', 'Notice at /node/1?destination=/admin');
+    $this->log(4, 'page not found', 'node/99');
+    $this->log(5, 'cron', 'Cron run completed');
+
+    $sender = $this->packagesSender([new Response(200, [], '{"ok":true,"accepted":2,"dropped":0}')]);
+    $result = $sender->send(Report::Logs);
+
+    $this->assertTrue($result->success);
+    $this->assertSame('Sent 2 log rows.', $result->message);
+    $rows = $this->sentRows()[0];
+    $this->assertCount(2, $rows, 'a notice and the excluded type are left out');
+    $this->assertSame('mail', $rows[0]['type']);
+    $this->assertSame('warning', $rows[0]['level']);
+    $this->assertSame('Mail to @name failed from <ip>', $rows[0]['message'], 'the template, not the filled-in message');
+    $this->assertSame('php', $rows[1]['type']);
+    $this->assertSame('error', $rows[1]['level']);
+    $this->assertSame('Notice at /node/1?<query>', $rows[1]['message']);
+    $this->assertSame(1792000000, $rows[0]['time']);
+
+    $again = $this->packagesSender([]);
+    $this->assertSame('No new log rows.', $again->send(Report::Logs)->message);
+    $this->assertSame([], $this->sent, 'the same rows are not sent twice');
+  }
+
+  /**
+   * The filled-in message is sent only when the settings say so, and scrubbed.
+   */
+  public function testTheFilledInMessageIsSentOnlyWhenAskedForAndIsScrubbed(): void {
+    $this->switchOn(Report::Logs);
+    $this->config('tracker_monitoring.settings')->set('log_send_filled_message', TRUE)->save();
+    $this->setKey(self::KEY);
+    $this->packagesSender([])->send(Report::Logs);
+    $this->log(4, 'mail', 'Mail to @name failed', ['@name' => 'bob@example.com']);
+
+    $this->packagesSender([new Response(200, [], '{"ok":true,"accepted":1,"dropped":0}')])->send(Report::Logs);
+
+    $this->assertSame('Mail to <email> failed', $this->sentRows()[0][0]['message']);
+  }
+
+  /**
+   * Rows Tracker did not take in are sent again, and the cursor stays put.
+   */
+  public function testRefusedBatchIsSentAgain(): void {
+    $this->switchOn(Report::Logs);
+    $this->setKey(self::KEY);
+    $this->packagesSender([])->send(Report::Logs);
+    $this->log(3, 'php', 'Boom');
+
+    $failed = $this->packagesSender([new Response(503, [], '{"error":"The log server is down."}')])->send(Report::Logs);
+    $this->assertFalse($failed->success);
+    $this->assertStringContainsString('503', $failed->message);
+    $this->assertSame(0, $this->container->get('tracker_monitoring.log_collector')->cursor(), 'not moved');
+
+    $sender = $this->packagesSender([new Response(200, [], '{"ok":true,"accepted":1,"dropped":0}')]);
+    $this->assertTrue($sender->send(Report::Logs)->success);
+    $this->assertSame('Boom', $this->sentRows()[0][0]['message']);
+    $this->assertSame(1, $this->container->get('tracker_monitoring.log_collector')->cursor());
+  }
+
+  /**
+   * A backlog goes out in batches of the size Tracker takes.
+   */
+  public function testBacklogIsSentInBatchesOfOneThousand(): void {
+    $this->switchOn(Report::Logs);
+    $this->setKey(self::KEY);
+    $this->packagesSender([])->send(Report::Logs);
+    for ($i = 0; $i < 1001; $i++) {
+      $this->log(3, 'php', 'Boom');
+    }
+
+    $ok = new Response(200, [], '{"ok":true,"accepted":1,"dropped":0}');
+    $result = $this->packagesSender([$ok, $ok])->send(Report::Logs);
+
+    $this->assertSame('Sent 1001 log rows.', $result->message);
+    $this->assertSame([1000, 1], array_map('count', $this->sentRows()));
   }
 
   /**

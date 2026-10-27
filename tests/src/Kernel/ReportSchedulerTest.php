@@ -93,19 +93,37 @@ final class ReportSchedulerTest extends KernelTestBase {
   }
 
   /**
-   * Each report keeps its own time, and the log rows are not sent by cron.
+   * Each report keeps its own time.
    */
   public function testReportsAreScheduledOnTheirOwn(): void {
     $this->switchOn(Report::Packages);
-    $this->switchOn(Report::Logs);
     $scheduler = $this->scheduler([new Response(200, [], '{"ok":true}'), new Response(200, [], '{"ok":true}')]);
 
-    $this->assertCount(1, $scheduler->run(), 'the logs are not sent by cron yet');
+    $this->assertCount(1, $scheduler->run());
 
     $this->switchOn(Report::Status);
     $results = $scheduler->run();
     $this->assertCount(1, $results);
     $this->assertSame(Report::Status, $results[0]->report);
+  }
+
+  /**
+   * The log rows are due every hour; without dblog the report fails and waits.
+   */
+  public function testLogsAreDueEveryHourAndFailureWaitsAnHour(): void {
+    $this->assertSame(3600, Report::Logs->interval());
+    $this->switchOn(Report::Logs);
+    $scheduler = $this->scheduler([]);
+
+    $results = $scheduler->run();
+
+    $this->assertCount(1, $results);
+    $this->assertFalse($results[0]->success);
+    $this->assertStringContainsString('dblog', $results[0]->message);
+    $this->now += ReportScheduler::RETRY_AFTER - 1;
+    $this->assertSame([], $scheduler->run());
+    $this->now += 1;
+    $this->assertCount(1, $scheduler->run());
   }
 
   /**
@@ -172,6 +190,7 @@ final class ReportSchedulerTest extends KernelTestBase {
       $time,
       new PackageReader(dirname(__DIR__, 2) . '/fixtures/site'),
       $this->container->get('tracker_monitoring.status_collector'),
+      $this->container->get('tracker_monitoring.log_collector'),
       new NullLogger(),
     );
     return new ReportScheduler($sender, $this->container->get('state'), $time);

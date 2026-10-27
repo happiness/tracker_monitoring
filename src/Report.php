@@ -24,12 +24,12 @@ enum Report: string {
    * How many seconds there are between two runs of cron sending this report.
    *
    * Tracker expects the packages daily and counts a site silent after three
-   * days. NULL means cron does not send it: the log rows are not built yet.
+   * days. The log rows are sent every hour, when there are new ones.
    */
-  public function interval(): ?int {
+  public function interval(): int {
     return match ($this) {
       self::Packages, self::Status => 86400,
-      self::Logs => NULL,
+      self::Logs => 3600,
     };
   }
 

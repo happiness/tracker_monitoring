@@ -20,6 +20,10 @@ services:
       - '@renderer'
       - '@database'
 
+  tracker_monitoring.log_collector:
+    class: Drupal\tracker_monitoring\LogCollector
+    arguments: ['@database', '@config.factory', '@state']
+
   tracker_monitoring.report_sender:
     class: Drupal\tracker_monitoring\ReportSender
     arguments:
@@ -28,6 +32,7 @@ services:
       - '@datetime.time'
       - '@tracker_monitoring.package_reader'
       - '@tracker_monitoring.status_collector'
+      - '@tracker_monitoring.log_collector'
       - '@logger.channel.tracker_monitoring'
   Drupal\tracker_monitoring\ReportSender: '@tracker_monitoring.report_sender'
 

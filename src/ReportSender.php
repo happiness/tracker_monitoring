@@ -18,12 +18,20 @@ use Psr\Log\LoggerInterface;
  */
 final class ReportSender {
 
+  /**
+   * The most log batches one run sends.
+   *
+   * A long backlog is worked off over several runs, not in one request.
+   */
+  private const MAX_LOG_BATCHES = 5;
+
   public function __construct(
     private readonly ConfigFactoryInterface $configFactory,
     private readonly ClientInterface $httpClient,
     private readonly TimeInterface $time,
     private readonly PackageReader $packageReader,
     private readonly StatusCollector $statusCollector,
+    private readonly LogCollector $logCollector,
     private readonly LoggerInterface $logger,
   ) {}
 
@@ -54,9 +62,42 @@ final class ReportSender {
     return match ($report) {
       Report::Packages => $this->sendPackages(),
       Report::Status => $this->post(Report::Status, ['report' => 'status'] + $this->statusCollector->collect()),
-      // @todo Logs.
-      default => new SendResult($report, TRUE, 'Not implemented yet.'),
+      Report::Logs => $this->sendLogs(),
     };
+  }
+
+  /**
+   * Sends the new rows of the database log, in batches.
+   *
+   * The first send only marks where to start: the log of a site is not sent
+   * back in time. The cursor moves only after Tracker took a batch in, so
+   * rows are sent again after a failure and never twice after a success.
+   */
+  private function sendLogs(): SendResult {
+    if (!$this->logCollector->isAvailable()) {
+      return new SendResult(Report::Logs, FALSE, 'The Database Logging module (dblog) is not installed: there are no log rows to send.');
+    }
+    if ($this->logCollector->cursor() === NULL) {
+      $this->logCollector->start();
+      return new SendResult(Report::Logs, TRUE, 'Started: log rows from now on are sent, nothing from before.');
+    }
+
+    $sent = 0;
+    for ($batch = 0; $batch < self::MAX_LOG_BATCHES; $batch++) {
+      $next = $this->logCollector->next();
+      if ($next['rows'] !== []) {
+        $result = $this->post(Report::Logs, ['report' => 'logs', 'rows' => $next['rows']]);
+        if (!$result->success) {
+          return new SendResult(Report::Logs, FALSE, $sent > 0 ? sprintf('%s %d rows were sent before that.', $result->message, $sent) : $result->message);
+        }
+        $sent += count($next['rows']);
+      }
+      $this->logCollector->advance($next['last']);
+      if (count($next['rows']) < LogCollector::BATCH) {
+        break;
+      }
+    }
+    return new SendResult(Report::Logs, TRUE, $sent === 0 ? 'No new log rows.' : sprintf('Sent %d log rows.', $sent));
   }
 
   /**
@@ -121,6 +162,9 @@ final class ReportSender {
     $answer = is_array($answer) ? $answer : [];
     if ($status === 200) {
       $counts = [(int) ($answer['opened'] ?? 0), (int) ($answer['updated'] ?? 0), (int) ($answer['closed'] ?? 0)];
+      if ($report === Report::Logs) {
+        return new SendResult($report, TRUE, sprintf('Sent. %d rows accepted, %d dropped.', (int) ($answer['accepted'] ?? 0), (int) ($answer['dropped'] ?? 0)));
+      }
       if ($report === Report::Packages) {
         $format = 'Sent. %d with security advisories, %d tickets opened, %d updated, %d closed.';
         array_unshift($counts, (int) ($answer['vulnerable'] ?? 0));

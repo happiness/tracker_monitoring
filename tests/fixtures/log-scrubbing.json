@@ -1,0 +1,38 @@
+[
+  {
+    "name": "an email address and an IP address",
+    "input": "User bob@example.com failed login from 192.168.1.20",
+    "message": "User <email> failed login from <ip>",
+    "signature": "User <email> failed login from <ip>"
+  },
+  {
+    "name": "a query string and the number in the path",
+    "input": "Page /node/123?destination=/admin/content&x=1 not found",
+    "message": "Page /node/123?<query> not found",
+    "signature": "Page /node/<n>?<query> not found"
+  },
+  {
+    "name": "a long hex string and a number",
+    "input": "Cache key 5f4dcc3b5aa765d61d8327deb882cf99 missed after 250 ms",
+    "message": "Cache key 5f4dcc3b5aa765d61d8327deb882cf99 missed after 250 ms",
+    "signature": "Cache key <hex> missed after <n> ms"
+  },
+  {
+    "name": "a path and a line number",
+    "input": "Uncaught Exception in /var/www/html/web/modules/custom/foo.php on line 42",
+    "message": "Uncaught Exception in /var/www/html/web/modules/custom/foo.php on line 42",
+    "signature": "Uncaught Exception in /var/www/html/web/modules/custom/foo.php on line <n>"
+  },
+  {
+    "name": "an email address inside a query string",
+    "input": "Login at /user/login?name=a@b.se failed",
+    "message": "Login at /user/login?<query> failed",
+    "signature": "Login at /user/login?<query> failed"
+  },
+  {
+    "name": "a version number is not an IP address",
+    "input": "version 1.2.3 and 10.0.0.1",
+    "message": "version 1.2.3 and <ip>",
+    "signature": "version <n>.<n>.<n> and <ip>"
+  }
+]

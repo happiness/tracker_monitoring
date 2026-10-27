@@ -7,9 +7,9 @@ A Drupal module that sends what Tracker (Happiness' issue tracker) needs to watc
 status report and its error log. Tracker turns that into tickets (security updates, warnings, new or frequent errors) and
 closes them again when the problem is gone. The site only makes outgoing requests: nothing on it is reachable from outside.
 
-**Status:** the packages and status reports are built and send (`dr tracker-monitoring:send packages|status`) and cron
-sends them once a day. The logs are not built (waiting for the log server). The rest of this file is the plan; change it
-as decisions are made.
+**Status:** the packages, status and log reports are built and send (`dr tracker-monitoring:send packages|status|logs`).
+Cron sends the packages and the status once a day and the new log rows every hour. The rest of this file is the plan;
+change it as decisions are made.
 
 The log server and the shipper configuration for servers with syslog are in `happiness/tracker-logs`.
 
@@ -37,8 +37,10 @@ Three kinds of report, each switched on separately in the module's settings.
    the updates the Update module already has (it fetches its own data from cron; this module fetches nothing), and the
    Drupal, PHP and database versions. Tracker turns it into two internal tickets; the format is in Tracker's
    documentation. The Update module is optional: without it `updates` is empty.
-3. **Logs.** New rows from `dblog` (the `watchdog` table), for sites where syslog is not possible. Sites that can use
-   syslog use rsyslog and Vector instead (see `tracker-logs`) and do not need this part.
+3. **Logs.** Built. New rows from `dblog` (the `watchdog` table), for sites where syslog is not possible, such as sites
+   on shared hosting. Sites that can use syslog use rsyslog and Vector instead (see `tracker-logs`) and do not need this
+   part. The rows go to Tracker (`"report": "logs"`), which scrubs them again and passes them on to the log server,
+   keeping none. The project in Tracker needs its logs switched on and a name for the site.
 
 ### The log rows
 
@@ -49,11 +51,14 @@ setting asks for it, and then only after scrubbing.
 
 - Never read: `hostname` (the visitor's IP), `uid`, `referer`, `location`, `link`.
 - Scrubbing, for the filled-in message and for modules that write data straight into `message`: email addresses, IP
-  addresses and query strings are removed. The same rules are in `tracker-logs/shippers/vector.yaml`; the two must give
-  the same result, so they share test cases.
-- Run from cron. The last sent `wid` is kept in Drupal's state and does not move when sending fails, so the rows are
-  sent again next time. On install it starts at the current highest `wid`: history is not sent. `dblog` prunes old
-  rows (`row_limit`), so a busy site needs frequent cron.
+  addresses and query strings are removed. The same rules are in `tracker-logs/shippers/vector.yaml` and in Tracker;
+  they must give the same result, so they share test cases (`tests/fixtures/log-scrubbing.json` here, the same file in
+  Tracker). Tracker scrubs again and makes the signature itself; the module's scrubbing is so that nothing leaves the
+  site unscrubbed.
+- Run from cron, every hour, at most 1,000 rows a report and five reports a run. The last sent `wid` is kept in Drupal's
+  state and does not move when sending fails, so the rows are sent again next time. The first send only marks the
+  newest `wid` ("Started"): history is not sent. `dblog` prunes old rows (`row_limit`), so a busy site needs frequent
+  cron.
 - Settings: the lowest severity to send (default warning) and a list of types to leave out (`page not found` and
   `access denied` are noisy).
 
@@ -65,10 +70,10 @@ Integrations › Site monitoring › Reported by the site):
 - `POST` over HTTPS with one key per project, `<project id>.<secret>`, made under the project's Site monitoring settings
   in Tracker. Headers: `X-Tracker-Project` (the id), `X-Tracker-Timestamp` and `X-Tracker-Signature`, the HMAC-SHA256 of
   `<timestamp>.<body>` with the whole key. The timestamp must be within five minutes, so a captured request cannot be
-  replayed. The packages report is `{"report": "packages", "packages", "requirements", "requires"}`.
+  replayed. The packages report is `{"report": "packages", "packages", "requirements", "requires"}`; the log report is
+  `{"report": "logs", "rows": [{"time", "type", "level", "message"}]}`.
 - Answers: 200 with counts; 400, 401, 409, 413 are refusals (logged on the site, not sent again until something is
   changed); 429 and 5xx mean nothing was changed and the same report is sent again on the next run.
-- Proposal, not built, for the other reports:
 - Tracker knows which project a key belongs to and sets `site` itself. A payload cannot claim to be another site, and
   a site holds no credential for the log server: Tracker forwards logs to VictoriaLogs.
 - Tracker answers 503 when it cannot hand logs on, and the module sends the same rows again later.
@@ -79,10 +84,10 @@ Integrations › Site monitoring › Reported by the site):
 
 ## Drupal CLI and cron
 
-- `hook_cron` sends the packages and the status once a day (`ReportScheduler`): a report that went through waits 24
-  hours, one that did not waits an hour, so a Tracker that is down is not asked on every cron run and a replaced key is
-  picked up by itself. `tracker-monitoring:send` sends at once and does not move these times. The logs are not sent by
-  cron yet.
+- `hook_cron` sends the packages and the status once a day and the log rows every hour (`ReportScheduler`): a report
+  that went through waits its interval, one that did not waits an hour, so a Tracker that is down is not asked on every
+  cron run and a replaced key is picked up by itself. `tracker-monitoring:send` sends at once and does not move these
+  times.
 - `dr tracker-monitoring:send [packages|status|logs]` sends at once and prints what it sent and what Tracker answered.
 - `dr tracker-monitoring:status` shows the settings (without the key), the last `wid` sent and the last answer.
 
@@ -121,16 +126,17 @@ adding when it has a clear action for a person (a ticket that says what to do), 
 
 ## Plan
 
-1. **Logs.** The `dblog` reader, scrubbing with shared test cases, sending, the retry rule, and the CLI command.
-2. **More checks**, chosen from the candidates above.
+1. **More checks**, chosen from the candidates above.
 
 ## Not decided
 
-- Whether the message with its variables filled in is ever sent, or only the template.
-- Whether one key covers all three reports.
 - How sites that cannot reach Tracker directly (a firewall, a proxy) send.
 
 ## Decided
+
+- The message with its variables filled in is sent only if the settings ask for it (off by default), and then scrubbed;
+  otherwise the template is sent.
+- One key covers all three reports.
 
 - A project has one source for its packages in Tracker (the repository or the site), not both, because the two disagree
   whenever a deploy lags and would close and open the same ticket every day. A site with the module still sends its

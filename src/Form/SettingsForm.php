@@ -96,7 +96,7 @@ final class SettingsForm extends ConfigFormBase {
     $form['reports']['send_logs'] = [
       '#type' => 'checkbox',
       '#title' => $this->t('Logs'),
-      '#description' => $this->t('New rows from the database log. Not needed on sites that ship syslog.'),
+      '#description' => $this->t('New rows from the database log (dblog), sent to Tracker every hour; Tracker passes them on to the log server and keeps none. The project in Tracker must have its logs switched on and a site name. Rows from before the first send are not sent. Not needed on sites that ship syslog.'),
       '#default_value' => $config->get('send_logs'),
     ];
 
