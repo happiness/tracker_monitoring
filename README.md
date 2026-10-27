@@ -1,6 +1,6 @@
 # tracker_monitoring
 
-The Composer package is `happiness/tracker_monitoring` (the repository is `happiness/tracker-monitoring`). It needs
+The Composer package and the repository are both `happiness/tracker_monitoring`. It needs
 Drupal 11.4 or later, because its command is a Drupal CLI (`dr`) command and `dr` first shipped with 11.4.
 
 A Drupal module that sends what Tracker (Happiness' issue tracker) needs to watch a site: the packages it runs, its
