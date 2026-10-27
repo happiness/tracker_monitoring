@@ -59,8 +59,10 @@ setting asks for it, and then only after scrubbing.
   state and does not move when sending fails, so the rows are sent again next time. The first send only marks the
   newest `wid` ("Started"): history is not sent. `dblog` prunes old rows (`row_limit`), so a busy site needs frequent
   cron.
-- Settings: the lowest severity to send (default warning) and a list of types to leave out (`page not found` and
-  `access denied` are noisy).
+- Settings: the lowest severity to send (default warning) and a list of types to leave out. The default is `page not
+  found`, `access denied`, `seckit` and `csp`: the first two are noisy, and the last two are the Content Security Policy
+  violations that visitors' browsers report (often caused by browser extensions), one log row each. The default is for
+  a site that installs the module; a site that has it already keeps its own list.
 
 ## How it reaches Tracker
 

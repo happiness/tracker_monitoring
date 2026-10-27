@@ -310,6 +310,8 @@ final class ReportSenderTest extends KernelTestBase {
     $this->log(4, 'mail', 'Mail to @name failed from 10.0.0.1', ['@name' => 'bob@example.com']);
     $this->log(3, 'php', 'Notice at /node/1?destination=/admin');
     $this->log(4, 'page not found', 'node/99');
+    $this->log(4, 'seckit', 'CSP: Directive @directive violated.');
+    $this->log(4, 'csp', 'Report from a browser');
     $this->log(5, 'cron', 'Cron run completed');
 
     $sender = $this->packagesSender([new Response(200, [], '{"ok":true,"accepted":2,"dropped":0}')]);
