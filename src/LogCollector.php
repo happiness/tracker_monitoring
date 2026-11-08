@@ -17,6 +17,14 @@ use Drupal\Core\State\StateInterface;
  * a site is not sent. The message is the template ("Mail to @name failed")
  * unless the settings ask for it filled in, and is scrubbed before it leaves
  * the site.
+ *
+ * PHP errors are the exception: Drupal logs every one of them with the same
+ * template ("%type: @message in %function (line %line of %file)."), so the
+ * template alone cannot tell them apart. For rows of type "php" the
+ * placeholders that point into the code (%type, %function, %line and %file,
+ * relative to the project) are always filled in; the error's own text
+ * (@message, sent as "…") and the backtrace stay out unless the filled-in
+ * message is asked for, as they can hold what a visitor sent.
  */
 final class LogCollector {
 
@@ -35,11 +43,24 @@ final class LogCollector {
    */
   private const CURSOR = 'tracker_monitoring.log_cursor';
 
+  /**
+   * The placeholders of a PHP error that point into the code, not at a visitor.
+   */
+  private const CODE_PLACEHOLDERS = ['%type', '%function', '%line', '%file'];
+
+  /**
+   * The project directory, taken off file paths; the one above the web root.
+   */
+  private readonly string $projectRoot;
+
   public function __construct(
     private readonly Connection $database,
     private readonly ConfigFactoryInterface $configFactory,
     private readonly StateInterface $state,
-  ) {}
+    string $appRoot,
+  ) {
+    $this->projectRoot = dirname($appRoot) . '/';
+  }
 
   /**
    * Whether the site has a database log to read.
@@ -106,7 +127,7 @@ final class LogCollector {
         'time' => (int) $row->timestamp,
         'type' => mb_substr((string) $row->type, 0, 100),
         'level' => self::level((int) $row->severity),
-        'message' => $this->message((string) $row->message, (string) $row->variables, $filled),
+        'message' => $this->message((string) $row->type, (string) $row->message, (string) $row->variables, $filled),
       ];
       $last = (int) $row->wid;
     }
@@ -123,13 +144,21 @@ final class LogCollector {
 
   /**
    * Makes the text of a row: the template or the filled-in message, scrubbed.
+   *
+   * A PHP error always gets the placeholders that point into the code.
    */
-  private function message(string $template, string $variables, bool $filled): string {
-    if ($filled) {
-      $values = @unserialize($variables, ['allowed_classes' => FALSE]);
-      if (is_array($values)) {
-        $template = strtr($template, array_map(static fn ($value): string => is_scalar($value) ? (string) $value : '', $values));
+  private function message(string $type, string $template, string $variables, bool $filled): string {
+    $values = $filled || $type === 'php' ? @unserialize($variables, ['allowed_classes' => FALSE]) : NULL;
+    if (is_array($values)) {
+      $values = array_map(static fn ($value): string => is_scalar($value) ? (string) $value : '', $values);
+      if (isset($values['%file'])) {
+        $values['%file'] = str_starts_with($values['%file'], $this->projectRoot) ? substr($values['%file'], strlen($this->projectRoot)) : basename($values['%file']);
       }
+      if (!$filled) {
+        $values = array_intersect_key($values, array_flip(self::CODE_PLACEHOLDERS));
+        $values += ['@message' => '…', ' @backtrace_string' => ''];
+      }
+      $template = strtr($template, $values);
     }
     $text = Html::decodeEntities(strip_tags($template));
     return mb_substr(LogScrubber::message($text), 0, self::MAX_MESSAGE);

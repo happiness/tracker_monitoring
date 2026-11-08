@@ -49,6 +49,12 @@ the **template**, the type, the severity and the time. The template is what Trac
 and the personal data is in `variables`, which is not sent. The message with the variables filled in is sent only if a
 setting asks for it, and then only after scrubbing.
 
+PHP errors are the exception. Drupal logs all of them with one template, `%type: @message in %function (line %line of
+%file).`, so the template alone would make every PHP error on a site one kind. For rows of type `php` the module always
+fills in the placeholders that point into the code: `%type`, `%function`, `%line` and `%file` (relative to the project
+directory, or the file name alone outside it). The error's own text (`@message`, sent as `…`) and the backtrace stay
+out unless the filled-in message is asked for, since they can hold what a visitor sent.
+
 - Never read: `hostname` (the visitor's IP), `uid`, `referer`, `location`, `link`.
 - Scrubbing, for the filled-in message and for modules that write data straight into `message`: email addresses, IP
   addresses and query strings are removed. The same rules are in `tracker-logs/shippers/vector.yaml` and in Tracker;
@@ -137,7 +143,7 @@ adding when it has a clear action for a person (a ticket that says what to do), 
 ## Decided
 
 - The message with its variables filled in is sent only if the settings ask for it (off by default), and then scrubbed;
-  otherwise the template is sent.
+  otherwise the template is sent. A PHP error always says where in the code it happened (2026-11-08), but not its text.
 - One key covers all three reports.
 
 - A project has one source for its packages in Tracker (the repository or the site), not both, because the two disagree

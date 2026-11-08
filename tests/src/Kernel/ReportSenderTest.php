@@ -350,6 +350,33 @@ final class ReportSenderTest extends KernelTestBase {
   }
 
   /**
+   * A PHP error says where in the code it happened, but not its own text.
+   */
+  public function testPhpErrorsSayWhereInTheCodeButNotTheirText(): void {
+    $this->switchOn(Report::Logs);
+    $this->setKey(self::KEY);
+    $this->packagesSender([])->send(Report::Logs);
+    $error = [
+      '%type' => 'Warning',
+      '@message' => 'Undefined array key "bob@example.com"',
+      '%function' => 'Drupal\example\Foo->bar()',
+      '%line' => '42',
+      '%file' => dirname($this->root) . '/web/modules/custom/example/src/Foo.php',
+      '@backtrace_string' => '#0 /home/site/web/index.php(19): main()',
+    ];
+    $this->log(3, 'php', '%type: @message in %function (line %line of %file) @backtrace_string.', $error);
+    $this->log(3, 'php', '%type: @message in %function (line %line of %file).', ['%file' => '/elsewhere/Bar.php'] + $error);
+    $this->log(3, 'mail', 'Error %type in %function', ['%type' => 'x', '%function' => 'y']);
+
+    $this->packagesSender([new Response(200, [], '{"ok":true,"accepted":3,"dropped":0}')])->send(Report::Logs);
+
+    $rows = $this->sentRows()[0];
+    $this->assertSame('Warning: … in Drupal\example\Foo->bar() (line 42 of web/modules/custom/example/src/Foo.php).', $rows[0]['message'], 'no text, no backtrace, the file relative to the project');
+    $this->assertSame('Warning: … in Drupal\example\Foo->bar() (line 42 of Bar.php).', $rows[1]['message'], 'a file outside the project by its name only');
+    $this->assertSame('Error %type in %function', $rows[2]['message'], 'only PHP errors are filled in');
+  }
+
+  /**
    * Rows Tracker did not take in are sent again, and the cursor stays put.
    */
   public function testRefusedBatchIsSentAgain(): void {

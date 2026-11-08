@@ -22,7 +22,7 @@ services:
 
   tracker_monitoring.log_collector:
     class: Drupal\tracker_monitoring\LogCollector
-    arguments: ['@database', '@config.factory', '@state']
+    arguments: ['@database', '@config.factory', '@state', '%app.root%']
 
   tracker_monitoring.report_sender:
     class: Drupal\tracker_monitoring\ReportSender
