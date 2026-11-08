@@ -192,6 +192,7 @@ final class ReportSchedulerTest extends KernelTestBase {
       $this->container->get('tracker_monitoring.status_collector'),
       $this->container->get('tracker_monitoring.log_collector'),
       new NullLogger(),
+      $this->container->get('state'),
     );
     return new ReportScheduler($sender, $this->container->get('state'), $time);
   }

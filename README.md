@@ -97,7 +97,9 @@ Integrations › Site monitoring › Reported by the site):
   cron run and a replaced key is picked up by itself. `tracker-monitoring:send` sends at once and does not move these
   times.
 - `dr tracker-monitoring:send [packages|status|logs]` sends at once and prints what it sent and what Tracker answered.
-- `dr tracker-monitoring:status` shows the settings (without the key), the last `wid` sent and the last answer.
+- `dr tracker-monitoring:status` shows the settings (without the key, only whether it is set and for which project),
+  for each report when it was last sent and what Tracker answered (from cron or the command) and when cron sends it
+  next, and the last `wid` sent next to the newest. It changes nothing.
 
 ## What it does not do
 

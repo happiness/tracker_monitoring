@@ -6,6 +6,7 @@ namespace Drupal\tracker_monitoring;
 
 use Drupal\Component\Datetime\TimeInterface;
 use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Core\State\StateInterface;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\GuzzleException;
 use Psr\Log\LoggerInterface;
@@ -25,6 +26,11 @@ final class ReportSender {
    */
   private const MAX_LOG_BATCHES = 5;
 
+  /**
+   * The state key prefix that holds what came of a report the last time.
+   */
+  private const LAST_RESULT = 'tracker_monitoring.last_result.';
+
   public function __construct(
     private readonly ConfigFactoryInterface $configFactory,
     private readonly ClientInterface $httpClient,
@@ -33,7 +39,22 @@ final class ReportSender {
     private readonly StatusCollector $statusCollector,
     private readonly LogCollector $logCollector,
     private readonly LoggerInterface $logger,
+    private readonly StateInterface $state,
   ) {}
+
+  /**
+   * Gets what came of a report the last time it was sent, from cron or not.
+   *
+   * @return array{time: int, success: bool, message: string}|null
+   *   When, whether it went through and what was said; NULL if never sent.
+   */
+  public function lastResult(Report $report): ?array {
+    $last = $this->state->get(self::LAST_RESULT . $report->value);
+    if (!is_array($last) || !is_int($last['time'] ?? NULL) || !is_bool($last['success'] ?? NULL) || !is_string($last['message'] ?? NULL)) {
+      return NULL;
+    }
+    return ['time' => $last['time'], 'success' => $last['success'], 'message' => $last['message']];
+  }
 
   /**
    * Gets the reports that are switched on in the settings.
@@ -52,6 +73,19 @@ final class ReportSender {
     if (!$this->isEnabled($report)) {
       return new SendResult($report, FALSE, 'The report is switched off in the settings.');
     }
+    $result = $this->attempt($report);
+    $this->state->set(self::LAST_RESULT . $report->value, [
+      'time' => $this->time->getCurrentTime(),
+      'success' => $result->success,
+      'message' => $result->message,
+    ]);
+    return $result;
+  }
+
+  /**
+   * Sends a report that is switched on.
+   */
+  private function attempt(Report $report): SendResult {
     if (Tracker::endpoint($this->configFactory) === '') {
       return new SendResult($report, FALSE, "Tracker's address is not set. See the Tracker Monitoring settings.");
     }

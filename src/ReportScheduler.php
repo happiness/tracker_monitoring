@@ -51,6 +51,14 @@ final class ReportScheduler {
   }
 
   /**
+   * Gets when cron sends a report next, or NULL if it is due on the next run.
+   */
+  public function nextDue(Report $report): ?int {
+    $next = (int) $this->state->get($this->stateKey($report), 0);
+    return $next > $this->time->getCurrentTime() ? $next : NULL;
+  }
+
+  /**
    * Gets the state key that holds when a report is next due.
    */
   private function stateKey(Report $report): string {

@@ -23,6 +23,7 @@ services:
   tracker_monitoring.log_collector:
     class: Drupal\tracker_monitoring\LogCollector
     arguments: ['@database', '@config.factory', '@state', '%app.root%']
+  Drupal\tracker_monitoring\LogCollector: '@tracker_monitoring.log_collector'
 
   tracker_monitoring.report_sender:
     class: Drupal\tracker_monitoring\ReportSender
@@ -34,6 +35,7 @@ services:
       - '@tracker_monitoring.status_collector'
       - '@tracker_monitoring.log_collector'
       - '@logger.channel.tracker_monitoring'
+      - '@state'
   Drupal\tracker_monitoring\ReportSender: '@tracker_monitoring.report_sender'
 
   tracker_monitoring.report_scheduler:

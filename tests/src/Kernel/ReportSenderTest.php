@@ -189,7 +189,7 @@ final class ReportSenderTest extends KernelTestBase {
   public function testUnreadablePackagesSendNothing(): void {
     $this->switchOn(Report::Packages);
     $this->setKey(self::KEY);
-    $sender = new ReportSender($this->container->get('config.factory'), new Client(['handler' => new MockHandler([])]), $this->container->get('datetime.time'), new PackageReader('/nowhere'), $this->container->get('tracker_monitoring.status_collector'), $this->container->get('tracker_monitoring.log_collector'), new NullLogger());
+    $sender = new ReportSender($this->container->get('config.factory'), new Client(['handler' => new MockHandler([])]), $this->container->get('datetime.time'), new PackageReader('/nowhere'), $this->container->get('tracker_monitoring.status_collector'), $this->container->get('tracker_monitoring.log_collector'), new NullLogger(), $this->container->get('state'));
 
     $result = $sender->send(Report::Packages);
 
@@ -241,6 +241,7 @@ final class ReportSenderTest extends KernelTestBase {
       $this->container->get('tracker_monitoring.status_collector'),
       $this->container->get('tracker_monitoring.log_collector'),
       new NullLogger(),
+      $this->container->get('state'),
     );
   }
 

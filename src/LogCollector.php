@@ -138,7 +138,7 @@ final class LogCollector {
   /**
    * Gets the id of the newest log row, or 0 if the log is empty.
    */
-  private function newest(): int {
+  public function newest(): int {
     return (int) $this->database->query('SELECT MAX([wid]) FROM {watchdog}')->fetchField();
   }
 
