@@ -9,7 +9,7 @@ namespace Drupal\tracker_monitoring;
  *
  * The rules are those of shippers/vector.yaml in happiness/tracker-logs and of
  * Tracker's own check (same regular expressions, same order), so a line gets
- * the same message whichever way it reaches the log server.
+ * the same message whether Tracker counts it or Vector sends it to the log server.
  * tests/fixtures/log-scrubbing.json holds the cases they are all held to.
  * Tracker scrubs again and makes the signature itself: this is the site's part,
  * so that nothing leaves the site unscrubbed.

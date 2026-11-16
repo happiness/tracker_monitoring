@@ -40,8 +40,9 @@ Three kinds of report, each switched on separately in the module's settings.
 3. **Logs.** Built. New rows from `dblog` (the `watchdog` table), for sites where syslog is not possible, such as sites
    on shared hosting. Sites that can use syslog use rsyslog and Vector instead (see `tracker-logs`) and do not need this
    part. The rows go to Tracker (`"report": "logs"`), which scrubs them again and counts them per hour and kind (the
-   ticket "Errors in the site's log" is made from those counts), and passes them on to a log server while it has one.
-   Tracker keeps no line. The project in Tracker needs its logs switched on and a name for the site.
+   ticket "Errors in the site's log" is made from those counts). Tracker keeps no line and passes none on to a log
+   server: log aggregation takes lines from Vector only (TRA#63), so a site that uses this part has counts and tickets
+   but no aggregation. The project in Tracker needs its logs switched on and a name for the site.
 
 ### The log rows
 
@@ -84,9 +85,7 @@ Integrations › Site monitoring › Reported by the site):
 - Answers: 200 with counts; 400, 401, 409, 413 are refusals (logged on the site, not sent again until something is
   changed); 429 and 5xx mean nothing was changed and the same report is sent again on the next run.
 - Tracker knows which project a key belongs to and sets `site` itself. A payload cannot claim to be another site, and
-  a site holds no credential for a log server: Tracker passes logs on to it while one is set up, and counts them either way.
-- Tracker answers 503 when it has a log server and cannot hand logs on, and then counts nothing, so the module sends the
-  same rows again later without them being counted twice.
+  a site holds no credential for a log server: Tracker counts the log rows and passes none on.
 - A site that stops reporting is a finding in itself: Tracker opens an internal ticket after three days without a report.
 - The Tracker address (`endpoint`, no default: nothing is sent until it is set) and the levels are set in the module's
   configuration. The key is not; it belongs in
