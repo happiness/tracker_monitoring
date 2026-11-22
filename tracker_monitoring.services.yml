@@ -38,6 +38,15 @@ services:
       - '@state'
   Drupal\tracker_monitoring\ReportSender: '@tracker_monitoring.report_sender'
 
+  tracker_monitoring.job_reporter:
+    class: Drupal\tracker_monitoring\JobReporter
+    arguments:
+      - '@config.factory'
+      - '@http_client'
+      - '@datetime.time'
+      - '@logger.channel.tracker_monitoring'
+  Drupal\tracker_monitoring\JobReporter: '@tracker_monitoring.job_reporter'
+
   tracker_monitoring.report_scheduler:
     class: Drupal\tracker_monitoring\ReportScheduler
     arguments: ['@tracker_monitoring.report_sender', '@state', '@datetime.time']
