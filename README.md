@@ -82,6 +82,9 @@ Integrations › Site monitoring › Reported by the site):
   `<timestamp>.<body>` with the whole key. The timestamp must be within five minutes, so a captured request cannot be
   replayed. The packages report is `{"report": "packages", "packages", "requirements", "requires"}`; the log report is
   `{"report": "logs", "rows": [{"time", "type", "level", "message"}]}`.
+- A job's runs go to `POST /hooks/job`, signed the same way: `{"job": "queue-run", "event": "start"}` and
+  `{"job": "queue-run", "event": "finish", "exit": 0, "seconds": 12, "output": "..."}` (`output` only when `exit` is not
+  0). The time of sending is signed, not the time the process started, since a job can run for hours.
 - Answers: 200 with counts; 400, 401, 409, 413 are refusals (logged on the site, not sent again until something is
   changed); 429 and 5xx mean nothing was changed and the same report is sent again on the next run.
 - Tracker knows which project a key belongs to and sets `site` itself. A payload cannot claim to be another site, and
@@ -101,6 +104,23 @@ Integrations › Site monitoring › Reported by the site):
 - `dr tracker-monitoring:status` shows the settings (without the key, only whether it is set and for which project),
   for each report when it was last sent and what Tracker answered (from cron or the command) and when cron sends it
   next, and the last `wid` sent next to the newest. It changes nothing.
+- `dr tracker-monitoring:run <job> -- <command> [arguments...]` runs a command and tells Tracker how it went. It is for
+  jobs that run outside Drupal's own cron, such as a line in the server's crontab:
+
+  ```
+  */15 * * * * www-data cd /var/www/example && vendor/bin/dr tracker-monitoring:run queue-run -- vendor/bin/drush queue:run reindex
+  ```
+
+  `<job>` is the job's name in Tracker (1 to 100 lowercase letters, digits, `-` or `_`). Tracker is told when the run
+  starts and when it ends, with the exit code, the seconds it took and, for a failed run only, the last 10 kB of its
+  output (Tracker scrubs it and shows it to staff only). Tracker opens an internal ticket when a job fails, does not
+  start on its schedule or runs too long, and closes it after the next successful run; a job appears in Tracker the
+  first time it reports, and its schedule is set there. The command's output goes on to the console and its exit code
+  is the command's own (a process that a signal ended is `128` plus the signal), so the crontab line behaves as before.
+  If Tracker cannot be reached, or the address or key is not set, a line on stderr says so and the command runs all the
+  same: reporting never gets in the way of the job. The command is started without a shell: use `sh -c '...'` for pipes
+  and redirects. It reports with the site's key, so no second secret goes into the crontab. Servers or sites that
+  cannot run this module use Tracker's own wrapper, `tracker-run` (Tracker serves it at `/hooks/job/wrapper`).
 
 ## What it does not do
 

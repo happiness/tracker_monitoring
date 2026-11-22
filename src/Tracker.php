@@ -21,6 +21,11 @@ final class Tracker {
   public const REPORT_PATH = '/hooks/monitoring';
 
   /**
+   * Where the start and the end of a job's run are posted.
+   */
+  public const JOB_PATH = '/hooks/job';
+
+  /**
    * Gets the address of Tracker, without a trailing slash, or '' if not set.
    */
   public static function endpoint(ConfigFactoryInterface $config_factory): string {
@@ -34,6 +39,14 @@ final class Tracker {
   public static function reportUrl(ConfigFactoryInterface $config_factory): string {
     $endpoint = self::endpoint($config_factory);
     return $endpoint === '' ? '' : $endpoint . self::REPORT_PATH;
+  }
+
+  /**
+   * Gets the address a job's runs are posted to, or '' if none is set.
+   */
+  public static function jobUrl(ConfigFactoryInterface $config_factory): string {
+    $endpoint = self::endpoint($config_factory);
+    return $endpoint === '' ? '' : $endpoint . self::JOB_PATH;
   }
 
 }
